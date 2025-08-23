@@ -1,19 +1,29 @@
+// C:\Users\kebic\OneDrive\Desktop\car_rent_rahim\car_rent_frontend\src\components\customer\CarCard.tsx
 import React from 'react';
 import { Star, Users, Fuel, Settings, MapPin } from 'lucide-react';
 import { Car } from '../../types';
+import { useNavigate } from 'react-router-dom';
 import { BASE_API_URL } from '../../config'; // Import the base URL
 
 interface CarCardProps {
   car: Car;
-  onBook?: (car: Car) => void;
 }
 
-const CarCard: React.FC<CarCardProps> = ({ car, onBook }) => {
-  // Construct full image URL
+const CarCard: React.FC<CarCardProps> = ({ car }) => {
+  const navigate = useNavigate();
+
+  const handleBook = () => {
+    if (car.available && car.status === 'approved') {
+      navigate(`/customer/booking/${car.id}`);
+    }
+  };
+
+  // Prepend base URL to image path if it doesn't start with http (handles seed data with external URLs)
   const imageUrl = car.image.startsWith('http') ? car.image : `${BASE_API_URL}${car.image}`;
 
   return (
     <div className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1">
+      {/* Car Image */}
       <div className="relative h-48 overflow-hidden">
         <img
           src={imageUrl}
@@ -38,7 +48,10 @@ const CarCard: React.FC<CarCardProps> = ({ car, onBook }) => {
           </span>
         </div>
       </div>
+
+      {/* Car Details */}
       <div className="p-6">
+        {/* Header */}
         <div className="mb-4">
           <h3 className="text-xl font-bold text-gray-900 mb-1">
             {car.brand} {car.carModel}
@@ -49,19 +62,16 @@ const CarCard: React.FC<CarCardProps> = ({ car, onBook }) => {
               <MapPin className="h-4 w-4" />
               <span>{car.wilaya}, {car.commune}</span>
             </div>
-            <span
-              className={`text-sm font-medium ${
-                car.status === 'approved'
-                  ? 'text-green-600'
-                  : car.status === 'pending'
-                  ? 'text-yellow-600'
-                  : 'text-red-600'
-              }`}
-            >
+            <span className={`text-sm font-medium ${
+              car.status === 'approved' ? 'text-green-600' :
+              car.status === 'pending' ? 'text-yellow-600' : 'text-red-600'
+            }`}>
               Status: {car.status.charAt(0).toUpperCase() + car.status.slice(1)}
             </span>
           </div>
         </div>
+
+        {/* Rating */}
         <div className="flex items-center mb-4">
           <div className="flex items-center space-x-1">
             {[...Array(5)].map((_, i) => (
@@ -79,6 +89,8 @@ const CarCard: React.FC<CarCardProps> = ({ car, onBook }) => {
             {car.rating} ({Math.floor(Math.random() * 50) + 10} reviews)
           </span>
         </div>
+
+        {/* Specifications */}
         <div className="grid grid-cols-3 gap-4 mb-6">
           <div className="text-center">
             <Users className="h-5 w-5 text-gray-400 mx-auto mb-1" />
@@ -93,6 +105,8 @@ const CarCard: React.FC<CarCardProps> = ({ car, onBook }) => {
             <span className="text-sm text-gray-600">{car.fuel}</span>
           </div>
         </div>
+
+        {/* Features */}
         <div className="mb-6">
           <h4 className="text-sm font-semibold text-gray-900 mb-2">Features</h4>
           <div className="flex flex-wrap gap-1">
@@ -111,6 +125,8 @@ const CarCard: React.FC<CarCardProps> = ({ car, onBook }) => {
             )}
           </div>
         </div>
+
+        {/* Chauffeur and Status */}
         <div className="mb-6">
           <p className="text-sm text-gray-600">
             Chauffeur: {car.chauffeur ? 'Yes' : 'No'}
@@ -121,13 +137,15 @@ const CarCard: React.FC<CarCardProps> = ({ car, onBook }) => {
             </p>
           )}
         </div>
+
+        {/* Price and Action */}
         <div className="flex items-center justify-between">
           <div>
             <span className="text-2xl font-bold text-gray-900">${car.price}</span>
             <span className="text-gray-600 text-sm">/day</span>
           </div>
           <button
-            onClick={() => onBook?.(car)}
+            onClick={handleBook}
             disabled={!car.available || car.status !== 'approved'}
             className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
               car.available && car.status === 'approved'
@@ -135,7 +153,7 @@ const CarCard: React.FC<CarCardProps> = ({ car, onBook }) => {
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
           >
-            {car.available && car.status === 'approved' ? 'Manage Car' : 'Cannot Manage'}
+            {car.available && car.status === 'approved' ? 'Book Now' : 'Unavailable'}
           </button>
         </div>
       </div>

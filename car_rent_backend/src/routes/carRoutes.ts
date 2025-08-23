@@ -1,5 +1,18 @@
+// C:\Users\kebic\OneDrive\Desktop\car_rent_rahim\car_rent_backend\routes\carRoutes.ts
 import { Router } from 'express';
-import { addCar, getCars, getOwnerCars, getPendingCars, approveCar, rejectCar, editCar, upload, deleteCarsById } from '../controllers/carController';
+import {
+  addCar,
+  getCars,
+  getOwnerCars,
+  getPendingCars,
+  approveCar,
+  rejectCar,
+  editCar,
+  upload,
+  deleteCarsById,
+  getCarById, // New
+  toggleCarAvailability, // New
+} from '../controllers/carController';
 import { authMiddleware, roleMiddleware } from '../middleware/authMiddleware';
 import { check } from 'express-validator';
 
@@ -50,6 +63,16 @@ router.put(
 router.get('/', getCars);
 router.get('/owner', authMiddleware, roleMiddleware(['owner']), getOwnerCars);
 router.get('/pending', authMiddleware, roleMiddleware(['admin']), getPendingCars);
+router.get('/:carId', getCarById); // New: Fetch single car
+router.put(
+  '/toggle-availability/:carId', // New: Toggle availability
+  [
+    authMiddleware,
+    roleMiddleware(['owner']),
+    check('available', 'Availability must be a boolean').isBoolean(),
+  ],
+  toggleCarAvailability
+);
 router.put('/approve/:carId', authMiddleware, roleMiddleware(['admin']), approveCar);
 router.put('/reject/:carId', authMiddleware, roleMiddleware(['admin']), rejectCar);
 router.post(

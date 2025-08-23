@@ -371,3 +371,100 @@ export const deleteCarsById = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+
+// Get a single car by ID
+export const getCarById = async (req: Request, res: Response) => {
+  const { carId } = req.params;
+
+  try {
+    const car = await Car.findById(carId).populate('ownerId', 'name email');
+    if (!car) {
+      return res.status(404).json({ message: 'Car not found' });
+    }
+    if (car.status !== 'approved') {
+      return res.status(403).json({ message: 'Car is not available for booking' });
+    }
+    res.json(car);
+  } catch (error) {
+    console.error('Get car by ID error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Toggle car availability
+export const toggleCarAvailability = async (req: AuthRequest, res: Response) => {
+  const { carId } = req.params;
+  const { available } = req.body;
+
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  try {
+    // Find the car to verify ownership and status
+    const car = await Car.findById(carId);
+    if (!car) {
+      return res.status(404).json({ message: 'Car not found' });
+    }
+
+    if (!req.user?.userId) {
+      return res.status(401).json({ message: 'Authentication token is missing or invalid' });
+    }
+
+    if (car.ownerId.toString() !== req.user.userId) {
+      return res.status(403).json({ message: 'Unauthorized to modify this car' });
+    }
+
+    if (car.status !== 'approved') {
+      return res.status(400).json({ message: 'Can only toggle availability for approved cars' });
+    }
+
+    // Update only the 'available' field and 'updatedAt' timestamp
+    const result = await Car.updateOne(
+      { _id: carId },
+      { $set: { available: available, updatedAt: new Date() } }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ message: 'Car not found' });
+    }
+
+    if (result.modifiedCount === 0) {
+      return res.status(400).json({ message: 'No changes made to car availability' });
+    }
+
+    // Fetch the updated car for response
+    const updatedCar = await Car.findById(carId).populate('ownerId', 'name email');
+
+    res.json({
+      message: `Car ${available ? 'made available' : 'made unavailable'} successfully`,
+      car: {
+        id: updatedCar?._id,
+        brand: updatedCar?.brand,
+        carModel: updatedCar?.carModel,
+        year: updatedCar?.year,
+        price: updatedCar?.price,
+        image: updatedCar?.image,
+        category: updatedCar?.category,
+        transmission: updatedCar?.transmission,
+        fuel: updatedCar?.fuel,
+        seats: updatedCar?.seats,
+        available: updatedCar?.available,
+        features: updatedCar?.features,
+        wilaya: updatedCar?.wilaya,
+        commune: updatedCar?.commune,
+        rating: updatedCar?.rating,
+        ownerId: updatedCar?.ownerId,
+        status: updatedCar?.status,
+        rejectionReason: updatedCar?.rejectionReason,
+        createdAt: updatedCar?.createdAt,
+        updatedAt: updatedCar?.updatedAt,
+        chauffeur: updatedCar?.chauffeur,
+      },
+    });
+  } catch (error) {
+    console.error('Toggle car availability error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};

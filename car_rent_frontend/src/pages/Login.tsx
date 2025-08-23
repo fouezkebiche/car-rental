@@ -1,9 +1,10 @@
+// C:\Users\kebic\OneDrive\Desktop\car_rent_rahim\car_rent_frontend\src\pages\Login.tsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail, Lock } from 'lucide-react';
 import axios from 'axios';
 
-const API_URL = '/api/auth'; // Using proxy to handle CORS
+const API_URL = '/api/auth';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -23,7 +24,7 @@ const Login: React.FC = () => {
       const { token, user } = response.data;
 
       // Validate user data
-      if (!user || !user.email || !user.role || !user.phone) {
+      if (!user || !user.id || !user.email || !user.role || !user.phone) {
         throw new Error('Invalid user data received from server');
       }
 
@@ -31,13 +32,17 @@ const Login: React.FC = () => {
       localStorage.setItem('token', token);
       localStorage.setItem('role', user.role);
       localStorage.setItem('userProfile', JSON.stringify({
+        id: user.id,
         name: user.name || 'Unknown User',
         email: user.email,
         role: user.role,
         phone: user.phone,
+        joinDate: user.joinDate,
+        status: user.status,
       }));
 
       console.log('Login successful, stored user data:', {
+        id: user.id,
         name: user.name,
         email: user.email,
         role: user.role,
@@ -58,6 +63,8 @@ const Login: React.FC = () => {
         navigate('/admin');
       } else if (user.role === 'owner') {
         navigate('/owner');
+      } else if (user.role === 'customer') {
+        navigate('/customer');
       } else {
         navigate('/');
       }

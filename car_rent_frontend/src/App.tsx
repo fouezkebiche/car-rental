@@ -7,10 +7,12 @@ import About from './pages/About';
 import Contact from './pages/Contact';
 import Cars from './pages/Cars';
 import BookingPage from './pages/BookingPage';
+import BookingForm from './components/customer/BookingForm';
 import AdminPage from './pages/AdminPage';
 import OwnerPage from './pages/OwnerPage';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import CustomerPage from './pages/CustomerPage';
 
 function App() {
   return (
@@ -26,6 +28,8 @@ function App() {
             <Route path="/booking" element={<BookingPage />} />
             <Route path="/admin/*" element={<AdminPage />} />
             <Route path="/owner/*" element={<OwnerPage />} />
+            <Route path="/customer/*" element={<CustomerPage />} />
+            <Route path="/customer/booking/:carId" element={<BookingForm />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
           </Routes>

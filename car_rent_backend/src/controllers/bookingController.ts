@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import Booking, { IBooking } from '../models/Booking';
 import Car from '../models/Car';
-import User from '../models/User'; // Added import
+import User from '../models/User';
 import { AuthRequest } from '../middleware/authMiddleware';
 import { validationResult } from 'express-validator';
 import { sendBookingStatusEmail } from '../services/emailService';
@@ -16,8 +16,20 @@ export const createBooking = async (req: AuthRequest, res: Response) => {
 
   try {
     const car = await Car.findById(carId);
-    if (!car || !car.available) {
-      return res.status(400).json({ message: 'Car not available' });
+    if (!car || !car.available || car.status !== 'approved') {
+      return res.status(400).json({ message: 'Car not available for booking' });
+    }
+
+    // Check for overlapping bookings
+    const overlappingBooking = await Booking.findOne({
+      carId,
+      status: { $in: ['pending', 'confirmed'] },
+      $or: [
+        { startDate: { $lte: new Date(endDate) }, endDate: { $gte: new Date(startDate) } },
+      ],
+    });
+    if (overlappingBooking) {
+      return res.status(400).json({ message: 'Car is already booked for the selected dates' });
     }
 
     const days = Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 3600 * 24));
@@ -28,7 +40,7 @@ export const createBooking = async (req: AuthRequest, res: Response) => {
         insurance: 25,
         'child-seat': 15,
         driver: 20,
-        wifi: 8
+        wifi: 8,
       };
       return total + (prices[service] || 0);
     }, 0);
@@ -45,12 +57,20 @@ export const createBooking = async (req: AuthRequest, res: Response) => {
       pickupLocation,
       dropoffLocation,
       additionalServices,
-      paymentMethod
+      paymentMethod,
     });
 
-    await booking.save();
-    car.available = false;
-    await car.save();
+    // Save booking and update car availability in a transaction
+    const session = await Car.startSession();
+    await session.withTransaction(async () => {
+      await booking.save({ session });
+      await Car.updateOne(
+        { _id: carId },
+        { $set: { available: false, updatedAt: new Date() } },
+        { session }
+      );
+    });
+    session.endSession();
 
     // Send notification email to owner
     const owner = await User.findById(car.ownerId).select('email name');
@@ -59,7 +79,7 @@ export const createBooking = async (req: AuthRequest, res: Response) => {
         to: owner.email,
         userName: owner.name,
         carDetails: `${car.brand} ${car.carModel}`,
-        status: 'pending', // Fixed in emailService.ts
+        status: 'pending',
         pickupLocation: booking.pickupLocation,
         startDate: booking.startDate,
       });
@@ -130,9 +150,21 @@ export const approveBooking = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    booking.status = 'confirmed';
-    booking.updatedAt = new Date();
-    await booking.save();
+    // Start a transaction to update booking and car atomically
+    const session = await Booking.startSession();
+    await session.withTransaction(async () => {
+      booking.status = 'confirmed';
+      booking.updatedAt = new Date();
+      await booking.save({ session });
+
+      // Update car availability to false
+      await Car.updateOne(
+        { _id: booking.carId },
+        { $set: { available: false, updatedAt: new Date() } },
+        { session }
+      );
+    });
+    session.endSession();
 
     // Send approval email to customer
     const userEmail = (booking.userId as any).email;
@@ -192,11 +224,10 @@ export const rejectBooking = async (req: AuthRequest, res: Response) => {
     await booking.save();
 
     // Set car back to available
-    const car = await Car.findById(booking.carId);
-    if (car) {
-      car.available = true;
-      await car.save();
-    }
+    await Car.updateOne(
+      { _id: booking.carId },
+      { $set: { available: true, updatedAt: new Date() } }
+    );
 
     // Send rejection email to customer
     const userEmail = (booking.userId as any).email;

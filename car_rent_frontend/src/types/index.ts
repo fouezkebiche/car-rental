@@ -1,7 +1,8 @@
+// C:\Users\kebic\OneDrive\Desktop\car_rent_rahim\car_rent_frontend\src\types.ts
 export interface Car {
   id: string;
   brand: string;
-  model: string;
+  carModel: string;
   year: number;
   price: number;
   image: string;
@@ -11,9 +12,20 @@ export interface Car {
   seats: number;
   available: boolean;
   features: string[];
-  location: string;
+  wilaya: string;
+  commune: string;
   rating: number;
-  ownerId?: string;
+  ownerId: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  status: 'pending' | 'approved' | 'rejected';
+  rejectionReason?: string;
+  definitive?: boolean; // Added to track permanent rejection
+  createdAt: string;
+  updatedAt: string;
+  chauffeur: boolean;
 }
 
 export interface User {
@@ -23,20 +35,37 @@ export interface User {
   phone: string;
   role: 'customer' | 'admin' | 'owner';
   joinDate: string;
-  status: 'active' | 'inactive';
+  status: 'active' | 'inactive' | 'pending';
 }
 
 export interface Booking {
   id: string;
-  userId: string;
-  carId: string;
+  userId: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  carId: {
+    id: string;
+    brand: string;
+    carModel: string;
+  };
+  ownerId: {
+    id: string;
+    name: string;
+    email: string;
+  };
   startDate: string;
   endDate: string;
   totalAmount: number;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   pickupLocation: string;
   dropoffLocation: string;
+  additionalServices: string[];
+  paymentMethod: 'credit-card' | 'paypal';
+  rejectionReason?: string;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface Testimonial {
@@ -46,6 +75,9 @@ export interface Testimonial {
   rating: number;
   comment: string;
   avatar: string;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface FilterOptions {
