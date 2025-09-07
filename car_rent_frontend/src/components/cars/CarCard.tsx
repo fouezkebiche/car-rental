@@ -1,7 +1,7 @@
 import React from 'react';
 import { Star, Users, Fuel, Settings, MapPin } from 'lucide-react';
 import { Car } from '../../types';
-import { BASE_API_URL } from '../../config'; // Import the base URL
+import { BASE_API_URL } from '../../config';
 
 interface CarCardProps {
   car: Car;
@@ -135,7 +135,7 @@ const CarCard: React.FC<CarCardProps> = ({ car, onBook }) => {
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
           >
-            {car.available && car.status === 'approved' ? 'Manage Car' : 'Cannot Manage'}
+            Book Now
           </button>
         </div>
       </div>

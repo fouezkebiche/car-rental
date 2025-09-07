@@ -1,7 +1,6 @@
-// src/components/Navbar.tsx
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, Car, User, Settings, LogOut } from 'lucide-react';
+import { Menu, X, Car, User, Settings, LogOut, LogIn } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const Navbar: React.FC = () => {
@@ -9,6 +8,7 @@ const Navbar: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const userRole = localStorage.getItem('role') || 'customer';
+  const isLoggedIn = !!localStorage.getItem('token');
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -22,6 +22,7 @@ const Navbar: React.FC = () => {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('role');
+    localStorage.removeItem('userProfile');
     navigate('/login');
     setIsOpen(false);
   };
@@ -33,7 +34,7 @@ const Navbar: React.FC = () => {
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-2">
             <Car className="h-8 w-8 text-blue-600" />
-            <span className="text-xl font-bold text-gray-900">CarRent</span>
+            <span className="text-xl font-bold text-gray-900">Car Service Sharing</span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -52,7 +53,7 @@ const Navbar: React.FC = () => {
               </Link>
             ))}
             <div className="flex items-center space-x-4">
-              {userRole === 'admin' && (
+              {isLoggedIn && userRole === 'admin' && (
                 <Link
                   to="/admin"
                   className={`flex items-center space-x-1 px-3 py-2 text-sm font-medium transition-colors duration-200 ${
@@ -65,7 +66,7 @@ const Navbar: React.FC = () => {
                   <span>Admin</span>
                 </Link>
               )}
-              {userRole === 'owner' && (
+              {isLoggedIn && userRole === 'owner' && (
                 <Link
                   to="/owner"
                   className={`flex items-center space-x-1 px-3 py-2 text-sm font-medium transition-colors duration-200 ${
@@ -78,13 +79,27 @@ const Navbar: React.FC = () => {
                   <span>Owner</span>
                 </Link>
               )}
-              <button
-                onClick={handleLogout}
-                className="flex items-center space-x-1 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors duration-200"
-              >
-                <LogOut className="h-4 w-4" />
-                <span>Logout</span>
-              </button>
+              {isLoggedIn ? (
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center space-x-1 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors duration-200"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span>Logout</span>
+                </button>
+              ) : (
+                <Link
+                  to="/login"
+                  className={`flex items-center space-x-1 px-3 py-2 text-sm font-medium transition-colors duration-200 ${
+                    isActive('/login')
+                      ? 'text-blue-600 bg-blue-50'
+                      : 'text-gray-700 hover:text-blue-600 hover:bg-blue-50'
+                  }`}
+                >
+                  <LogIn className="h-4 w-4" />
+                  <span>Login</span>
+                </Link>
+              )}
             </div>
           </div>
 
@@ -116,7 +131,7 @@ const Navbar: React.FC = () => {
                 </Link>
               ))}
               <div className="border-t pt-2 mt-2">
-                {userRole === 'admin' && (
+                {isLoggedIn && userRole === 'admin' && (
                   <Link
                     to="/admin"
                     onClick={() => setIsOpen(false)}
@@ -130,7 +145,7 @@ const Navbar: React.FC = () => {
                     <span>Admin</span>
                   </Link>
                 )}
-                {userRole === 'owner' && (
+                {isLoggedIn && userRole === 'owner' && (
                   <Link
                     to="/owner"
                     onClick={() => setIsOpen(false)}
@@ -144,13 +159,28 @@ const Navbar: React.FC = () => {
                     <span>Owner</span>
                   </Link>
                 )}
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center space-x-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors duration-200 w-full text-left"
-                >
-                  <LogOut className="h-4 w-4" />
-                  <span>Logout</span>
-                </button>
+                {isLoggedIn ? (
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center space-x-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors duration-200 w-full text-left"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    <span>Logout</span>
+                  </button>
+                ) : (
+                  <Link
+                    to="/login"
+                    onClick={() => setIsOpen(false)}
+                    className={`flex items-center space-x-2 px-3 py-2 text-sm font-medium transition-colors duration-200 ${
+                      isActive('/login')
+                        ? 'text-blue-600 bg-blue-50'
+                        : 'text-gray-700 hover:text-blue-600 hover:bg-blue-50'
+                    } rounded-md`}
+                  >
+                    <LogIn className="h-4 w-4" />
+                    <span>Login</span>
+                  </Link>
+                )}
               </div>
             </div>
           </div>

@@ -1,8 +1,7 @@
-// C:\Users\kebic\OneDrive\Desktop\car_rent_rahim\car_rent_frontend\src\components\customer\CustomerDashboard.tsx
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Booking } from '../../types';
-import { AlertCircle, Calendar, MapPin, Car as CarIcon } from 'lucide-react';
+import { AlertCircle, Calendar, MapPin, Car as CarIcon, DollarSign, Clock } from 'lucide-react';
 
 const CustomerDashboard: React.FC = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -93,56 +92,89 @@ const CustomerDashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">My Bookings</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-8">My Bookings</h1>
         {bookings.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-6 text-center text-gray-600">
-            No bookings found.
+          <div className="bg-white rounded-xl shadow-md p-8 text-center text-gray-600">
+            No bookings found. Start browsing cars to make your first booking!
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {bookings.map((booking) => (
-              <div
-                key={booking.id}
-                className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow duration-200"
-              >
-                <div className="flex items-center mb-4">
-                  <CarIcon className="h-6 w-6 text-blue-600 mr-2" />
-                  <h2 className="text-xl font-semibold text-gray-900">
-                    {booking.carId.brand} {booking.carId.carModel}
-                  </h2>
-                </div>
-                <div className="space-y-2 text-gray-600">
-                  <p className="flex items-center">
-                    <Calendar className="h-4 w-4 mr-2" />
-                    Start: {new Date(booking.startDate).toLocaleDateString()}
-                  </p>
-                  <p className="flex items-center">
-                    <Calendar className="h-4 w-4 mr-2" />
-                    End: {new Date(booking.endDate).toLocaleDateString()}
-                  </p>
-                  <p className="flex items-center">
-                    <MapPin className="h-4 w-4 mr-2" />
-                    Pickup: {booking.pickupLocation}
-                  </p>
-                  <p className="flex items-center">
-                    <MapPin className="h-4 w-4 mr-2" />
-                    Dropoff: {booking.dropoffLocation}
-                  </p>
-                  <p>Status: <span className={`font-medium ${booking.status === 'confirmed' ? 'text-green-600' : booking.status === 'pending' ? 'text-yellow-600' : 'text-red-600'}`}>
-                    {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-                  </span></p>
-                  <p>Total Amount: ${booking.totalAmount}</p>
-                  <p>Payment Method: {booking.paymentMethod}</p>
-                  {booking.additionalServices.length > 0 && (
-                    <p>Services: {booking.additionalServices.join(', ')}</p>
-                  )}
-                  {booking.rejectionReason && (
-                    <p className="text-red-600">Rejection Reason: {booking.rejectionReason}</p>
-                  )}
-                  <p>Owner: {booking.ownerId.name} ({booking.ownerId.email})</p>
-                </div>
-              </div>
-            ))}
+          <div className="bg-white rounded-xl shadow-md overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Car
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Dates
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Locations
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Amount
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {bookings.map((booking) => (
+                    <tr key={booking.id} className="hover:bg-gray-50 transition-colors duration-200">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <CarIcon className="h-5 w-5 text-blue-600 mr-2" />
+                          <span className="font-medium text-gray-900">
+                            {booking.carId.brand} {booking.carId.carModel}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <Calendar className="h-4 w-4 text-gray-400 mr-2" />
+                          <span className="text-sm text-gray-900">
+                            {new Date(booking.startDate).toLocaleDateString()} - {new Date(booking.endDate).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="space-y-1">
+                          <div className="flex items-center text-sm text-gray-600">
+                            <MapPin className="h-4 w-4 mr-1 flex-shrink-0" />
+                            Pickup: {booking.pickupLocation}
+                          </div>
+                          <div className="flex items-center text-sm text-gray-600">
+                            <MapPin className="h-4 w-4 mr-1 flex-shrink-0" />
+                            Dropoff: {booking.dropoffLocation}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <DollarSign className="h-4 w-4 text-gray-400 mr-1" />
+                          <span className="text-sm font-medium text-gray-900">${booking.totalAmount}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          booking.status === 'confirmed' ? 'bg-green-100 text-green-800' :
+                          booking.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                          booking.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                        </span>
+                        {booking.rejectionReason && (
+                          <p className="text-xs text-red-600 mt-1">{booking.rejectionReason}</p>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

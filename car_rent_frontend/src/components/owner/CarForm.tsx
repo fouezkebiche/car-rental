@@ -2,6 +2,27 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Car } from '../../types';
+import wilayasData from './wilaya data/wilayas.json';
+import communesData from './wilaya data/communes.json';
+
+interface Wilaya {
+  id: string;
+  code: string;
+  name: string;
+  ar_name: string;
+  longitude: string;
+  latitude: string;
+}
+
+interface Commune {
+  id: string;
+  post_code: string;
+  name: string;
+  wilaya_id: string;
+  ar_name: string;
+  longitude: string;
+  latitude: string;
+}
 
 const CarForm: React.FC = () => {
   const { carId } = useParams<{ carId: string }>();
@@ -9,12 +30,12 @@ const CarForm: React.FC = () => {
   const [formData, setFormData] = useState({
     brand: '',
     carModel: '',
-    year: 0,
-    price: 0,
+    year: null as number | null,
+    price: null as number | null,
     category: 'Economy',
     transmission: 'Manual',
     fuel: 'Petrol',
-    seats: 0,
+    seats: null as number | null,
     features: '',
     wilaya: '',
     commune: '',
@@ -28,6 +49,7 @@ const CarForm: React.FC = () => {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(!!carId);
+  const [filteredCommunes, setFilteredCommunes] = useState<Commune[]>([]);
 
   useEffect(() => {
     if (!carId) {
@@ -83,12 +105,12 @@ const CarForm: React.FC = () => {
         setFormData({
           brand: car.brand || '',
           carModel: car.carModel || '',
-          year: car.year || 0,
-          price: car.price || 0,
+          year: car.year || null,
+          price: car.price || null,
           category: car.category || 'Economy',
           transmission: car.transmission || 'Manual',
           fuel: car.fuel || 'Petrol',
-          seats: car.seats || 0,
+          seats: car.seats || null,
           features: car.features?.join(', ') || '',
           wilaya: car.wilaya || '',
           commune: car.commune || '',
@@ -97,6 +119,13 @@ const CarForm: React.FC = () => {
           image: car.image || '/default-car.jpg',
           definitive: car.definitive || false,
         });
+
+        // Update filtered communes based on the fetched wilaya
+        if (car.wilaya) {
+          setFilteredCommunes(
+            communesData.filter((commune) => commune.wilaya_id === car.wilaya)
+          );
+        }
       } catch (err: any) {
         console.error('Error fetching car:', {
           carId,
@@ -123,10 +152,20 @@ const CarForm: React.FC = () => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
+    const newValue = type === 'number' ? (value === '' ? null : Number(value)) : value;
     setFormData((prev) => ({
       ...prev,
-      [name]: type === 'number' ? Number(value) : value,
+      [name]: newValue,
     }));
+
+    if (name === 'wilaya') {
+      // Update filtered communes when wilaya changes
+      setFilteredCommunes(
+        communesData.filter((commune) => commune.wilaya_id === value)
+      );
+      // Reset commune if the wilaya changes
+      setFormData((prev) => ({ ...prev, commune: '' }));
+    }
   };
 
   const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -186,7 +225,7 @@ const CarForm: React.FC = () => {
           .filter((f) => f);
         data.append(key, JSON.stringify(featuresArray));
       } else if (key !== 'rejectionReason' && key !== 'image' && key !== 'definitive') {
-        data.append(key, value.toString());
+        data.append(key, (value ?? '').toString());
       }
     });
     if (newImage) {
@@ -312,8 +351,9 @@ const CarForm: React.FC = () => {
             <input
               type="number"
               name="year"
-              value={formData.year}
+              value={formData.year ?? ''}
               onChange={handleInputChange}
+              placeholder="Enter year"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-colors duration-200 disabled:bg-gray-100"
               required
               min="1900"
@@ -326,8 +366,9 @@ const CarForm: React.FC = () => {
             <input
               type="number"
               name="price"
-              value={formData.price}
+              value={formData.price ?? ''}
               onChange={handleInputChange}
+              placeholder="Enter daily price"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-colors duration-200 disabled:bg-gray-100"
               required
               min="0"
@@ -387,13 +428,50 @@ const CarForm: React.FC = () => {
             <input
               type="number"
               name="seats"
-              value={formData.seats}
+              value={formData.seats ?? ''}
               onChange={handleInputChange}
+              placeholder="Enter number of seats"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-colors duration-200 disabled:bg-gray-100"
               required
               min="1"
               disabled={loading}
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Wilaya</label>
+            <select
+              name="wilaya"
+              value={formData.wilaya}
+              onChange={handleInputChange}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-colors duration-200 disabled:bg-gray-100"
+              required
+              disabled={loading}
+            >
+              <option value="">Select a Wilaya</option>
+              {wilayasData.map((wilaya: Wilaya) => (
+                <option key={wilaya.id} value={wilaya.id}>
+                  {wilaya.name} ({wilaya.ar_name})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Commune</label>
+            <select
+              name="commune"
+              value={formData.commune}
+              onChange={handleInputChange}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-colors duration-200 disabled:bg-gray-100"
+              required
+              disabled={loading || !formData.wilaya}
+            >
+              <option value="">Select a Commune</option>
+              {filteredCommunes.map((commune: Commune) => (
+                <option key={commune.id} value={commune.id}>
+                  {commune.name} ({commune.ar_name})
+                </option>
+              ))}
+            </select>
           </div>
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -406,30 +484,6 @@ const CarForm: React.FC = () => {
               onChange={handleFeaturesChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-colors duration-200 disabled:bg-gray-100"
               placeholder="e.g., GPS, AC, Bluetooth"
-              disabled={loading}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Wilaya</label>
-            <input
-              type="text"
-              name="wilaya"
-              value={formData.wilaya}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-colors duration-200 disabled:bg-gray-100"
-              required
-              disabled={loading}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Commune</label>
-            <input
-              type="text"
-              name="commune"
-              value={formData.commune}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-colors duration-200 disabled:bg-gray-100"
-              required
               disabled={loading}
             />
           </div>

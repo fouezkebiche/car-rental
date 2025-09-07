@@ -1,6 +1,5 @@
-// C:\Users\kebic\OneDrive\Desktop\car_rent_rahim\car_rent_frontend\src\pages\Login.tsx
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Mail, Lock } from 'lucide-react';
 import axios from 'axios';
 
@@ -133,9 +132,9 @@ const Login: React.FC = () => {
           </form>
           <p className="text-sm text-gray-600 mt-4 text-center">
             Don't have an account?{' '}
-            <a href="/register" className="text-blue-600 hover:underline">
+            <Link to="/register" className="text-blue-600 hover:underline">
               Register
-            </a>
+            </Link>
           </p>
         </div>
       </section>

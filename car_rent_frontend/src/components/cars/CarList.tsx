@@ -3,7 +3,8 @@ import { Search, Filter, SlidersHorizontal } from 'lucide-react';
 import { Car, FilterOptions } from '../../types';
 import CarCard from './CarCard';
 import axios from 'axios';
-import { BASE_API_URL } from '../../config'; // Import the base URL
+import { BASE_API_URL } from '../../config';
+import { useNavigate } from 'react-router-dom';
 
 const CarList: React.FC = () => {
   const [cars, setCars] = useState<Car[]>([]);
@@ -19,6 +20,9 @@ const CarList: React.FC = () => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [selectedCarId, setSelectedCarId] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   const categories = ['Economy', 'Compact', 'SUV', 'Luxury', 'Sports'];
   const transmissions = ['Manual', 'Automatic'];
@@ -37,16 +41,16 @@ const CarList: React.FC = () => {
           carModel: c.carModel,
           year: c.year,
           price: c.price,
-          image: c.image ? `${BASE_API_URL}${c.image}` : '/default-car.jpg', // Prepend base URL
+          image: c.image ? (c.image.startsWith('http') ? c.image : `${BASE_API_URL}${c.image}`) : '/default-car.jpg',
           category: c.category,
           transmission: c.transmission,
           fuel: c.fuel,
           seats: c.seats,
           available: c.available,
-          features: c.features,
-          wilaya: c.wilaya,
-          commune: c.commune,
-          rating: c.rating,
+          features: c.features || [],
+          wilaya: c.wilaya || 'Unknown',
+          commune: c.commune || 'Unknown',
+          rating: c.rating || 0,
           ownerId: {
             id: c.ownerId?._id?.toString() || 'N/A',
             name: c.ownerId?.name || 'Unknown',
@@ -56,7 +60,7 @@ const CarList: React.FC = () => {
           rejectionReason: c.rejectionReason,
           createdAt: c.createdAt,
           updatedAt: c.updatedAt,
-          chauffeur: c.chauffeur,
+          chauffeur: c.chauffeur || false,
         }));
         setCars(fetchedCars);
         setFilteredCars(fetchedCars);
@@ -113,8 +117,19 @@ const CarList: React.FC = () => {
   };
 
   const handleBookCar = (car: Car) => {
-    console.log('Booking car:', car);
-    // Navigate to booking page or open booking modal
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setSelectedCarId(car.id);
+      setShowAuthModal(true);
+    } else {
+      navigate(`/customer/booking/${car.id}`);
+    }
+  };
+
+  const handleAuthRedirect = () => {
+    setShowAuthModal(false);
+    const redirectUrl = selectedCarId ? `/customer/booking/${selectedCarId}` : '/customer/cars';
+    navigate(`/login?redirect=${encodeURIComponent(redirectUrl)}`);
   };
 
   return (
@@ -283,6 +298,32 @@ const CarList: React.FC = () => {
             >
               Clear Filters
             </button>
+          </div>
+        )}
+        {showAuthModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-8 max-w-md w-full mx-4 shadow-2xl">
+              <div className="text-center">
+                <h2 className="text-2xl font-bold text-gray-900 mb-4">Authentication Required</h2>
+                <p className="text-gray-600 mb-6">
+                  Please log in or register to book a car. You'll be redirected to the booking page after signing in.
+                </p>
+                <div className="flex justify-center space-x-4">
+                  <button
+                    onClick={handleAuthRedirect}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 font-medium"
+                  >
+                    Log In
+                  </button>
+                  <button
+                    onClick={() => setShowAuthModal(false)}
+                    className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors duration-200 font-medium"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

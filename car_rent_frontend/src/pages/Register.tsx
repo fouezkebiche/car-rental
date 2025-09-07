@@ -1,10 +1,9 @@
-// src/components/Register.tsx
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { User, Mail, Lock, Phone, Car } from 'lucide-react';
 import axios from 'axios';
 
-const API_URL = '/api/auth'; // Using proxy to handle CORS
+const API_URL = '/api/auth';
 
 const Register: React.FC = () => {
   const [name, setName] = useState('');
@@ -154,9 +153,9 @@ const Register: React.FC = () => {
           </form>
           <p className="text-sm text-gray-600 mt-4 text-center">
             Already have an account?{' '}
-            <a href="/login" className="text-blue-600 hover:underline">
+            <Link to="/login" className="text-blue-600 hover:underline">
               Log in
-            </a>
+            </Link>
           </p>
         </div>
       </section>

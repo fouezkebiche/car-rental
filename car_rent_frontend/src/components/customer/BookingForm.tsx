@@ -1,4 +1,3 @@
-// C:\Users\kebic\OneDrive\Desktop\car_rent_rahim\car_rent_frontend\src\components\customer\BookingForm.tsx
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -21,7 +20,7 @@ const BookingForm: React.FC = () => {
   });
   const [totalAmount, setTotalAmount] = useState(0);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
 
@@ -138,7 +137,6 @@ const BookingForm: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setSuccess('');
     setLoading(true);
 
     const token = localStorage.getItem('token');
@@ -165,8 +163,7 @@ const BookingForm: React.FC = () => {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-      setSuccess('Booking created successfully! Await owner confirmation.');
-      setTimeout(() => navigate('/customer/bookings'), 3000);
+      setSuccess(true);
     } catch (err: any) {
       console.error('Create booking error:', {
         status: err.response?.status,
@@ -189,6 +186,11 @@ const BookingForm: React.FC = () => {
     }
   };
 
+  const handleCloseSuccess = () => {
+    setSuccess(false);
+    navigate('/customer');
+  };
+
   if (fetching) {
     return <div className="flex justify-center items-center h-64 text-gray-600">Loading car details...</div>;
   }
@@ -204,11 +206,6 @@ const BookingForm: React.FC = () => {
   return (
     <div className="p-8 max-w-2xl mx-auto">
       <h2 className="text-3xl font-bold text-gray-900 mb-6">Book {car.brand} {car.carModel}</h2>
-      {success && (
-        <div className="mb-6 p-4 bg-green-100 text-green-700 rounded-lg">
-          {success}
-        </div>
-      )}
       <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-lg p-6 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
@@ -350,6 +347,26 @@ const BookingForm: React.FC = () => {
           </button>
         </div>
       </form>
+
+      {success && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-8 max-w-md w-full mx-4 shadow-2xl">
+            <div className="text-center">
+              <Check className="h-16 w-16 text-green-500 mx-auto mb-4" />
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Booking Submitted</h2>
+              <p className="text-gray-600 mb-6">
+                Your booking is under review. The car owner will review your request and we will contact you soon with confirmation.
+              </p>
+              <button
+                onClick={handleCloseSuccess}
+                className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 font-medium"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

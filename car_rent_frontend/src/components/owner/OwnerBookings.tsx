@@ -281,18 +281,7 @@ const OwnerBookings: React.FC = () => {
           ))}
         </div>
       )}
-      <h2 className="text-2xl font-bold text-gray-900 mt-12 mb-6">Completed/Cancelled Bookings</h2>
-      <div className="bg-white rounded-lg shadow p-6">
-        <p className="text-gray-600 mb-4">To make a car available again, please update its status in the 'My Cars' section.</p>
-        <button
-          onClick={() => handleMakeAvailable(bookings[0]?.carId.id || '')}
-          disabled={isLoading || !bookings.length}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 disabled:bg-blue-400 disabled:cursor-not-allowed"
-        >
-          <RefreshCw className="h-4 w-4 inline mr-2" />
-          Make Car Available (Example)
-        </button>
-      </div>
+      
     </div>
   );
 };

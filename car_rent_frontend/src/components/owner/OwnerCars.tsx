@@ -1,8 +1,7 @@
-// C:\Users\kebic\OneDrive\Desktop\car_rent_rahim\car_rent_frontend\src\components\owner\OwnerCars.tsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Car as CarIcon, Edit2, RefreshCw } from 'lucide-react';
+import { Car as CarIcon, Edit2 } from 'lucide-react';
 import { Car } from '../../types';
 import { BASE_API_URL } from '../../config';
 
@@ -184,9 +183,6 @@ const OwnerCars: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiv
                     >
                       Status: {car.status.charAt(0).toUpperCase() + car.status.slice(1)}
                     </p>
-                    <p className="text-sm font-medium mt-1">
-                      Availability: {car.available ? 'Available' : 'Not Available'}
-                    </p>
                     {car.status === 'rejected' && car.rejectionReason && (
                       <p className="text-sm text-red-500 mt-1">
                         Reason: {car.rejectionReason}
@@ -204,14 +200,17 @@ const OwnerCars: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiv
                       </button>
                     )}
                     {car.status === 'approved' && (
-                      <button
-                        onClick={() => handleToggleAvailability(car.id, car.available)}
-                        disabled={isLoading}
-                        className="flex items-center space-x-1 bg-gray-600 text-white px-3 py-1 rounded-md hover:bg-gray-700 transition-colors duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                      >
-                        <RefreshCw className="h-4 w-4" />
-                        <span>{car.available ? 'Make Unavailable' : 'Make Available'}</span>
-                      </button>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={car.available}
+                          onChange={() => handleToggleAvailability(car.id, car.available)}
+                          className="sr-only peer"
+                          disabled={isLoading}
+                        />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        <span className="ms-3 text-sm font-medium text-gray-900">Available</span>
+                      </label>
                     )}
                   </div>
                 </div>
