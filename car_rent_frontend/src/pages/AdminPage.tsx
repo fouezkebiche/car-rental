@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Car, BarChart3, Settings, LogOut } from 'lucide-react';
+import { Users, Car, BarChart3, Settings, LogOut, Calendar } from 'lucide-react';
 import AdminDashboard from '../components/admin/AdminDashboard';
 import AdminUsers from '../components/admin/AdminUsers';
 import AdminCars from '../components/admin/AdminCars';
+import AdminBookings from '../components/admin/AdminBookings';
 
 interface AdminProfile {
   name: string;
@@ -23,11 +24,11 @@ const AdminPage: React.FC = () => {
     { id: 'dashboard', label: 'Dashboard', icon: <BarChart3 className="h-5 w-5" /> },
     { id: 'users', label: 'Users', icon: <Users className="h-5 w-5" /> },
     { id: 'cars', label: 'Cars', icon: <Car className="h-5 w-5" /> },
+    { id: 'bookings', label: 'Bookings', icon: <Calendar className="h-5 w-5" /> },
     { id: 'settings', label: 'Settings', icon: <Settings className="h-5 w-5" /> },
   ];
 
   useEffect(() => {
-    // Check for token immediately on mount
     const token = localStorage.getItem('token');
     if (!token) {
       console.warn('No authentication token found, redirecting to login');
@@ -35,7 +36,6 @@ const AdminPage: React.FC = () => {
       return;
     }
 
-    // Load profile from localStorage if on settings tab
     if (activeTab === 'settings') {
       fetchProfile();
     }
@@ -63,7 +63,6 @@ const AdminPage: React.FC = () => {
         message: err.message,
       });
       setProfileError('Failed to load profile information. Using fallback data.');
-      // Set fallback data
       setProfile({
         name: 'Admin User',
         email: 'admin@example.com',
@@ -91,6 +90,8 @@ const AdminPage: React.FC = () => {
         return <AdminUsers />;
       case 'cars':
         return <AdminCars />;
+      case 'bookings':
+        return <AdminBookings />;
       case 'settings':
         return (
           <div className="p-8 max-w-2xl mx-auto">
@@ -149,7 +150,6 @@ const AdminPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="flex">
-        {/* Sidebar */}
         <div className="w-64 bg-white shadow-lg">
           <div className="p-6 border-b">
             <h2 className="text-xl font-bold text-gray-900">Admin Panel</h2>
@@ -183,8 +183,6 @@ const AdminPage: React.FC = () => {
             </ul>
           </nav>
         </div>
-
-        {/* Main Content */}
         <div className="flex-1">{renderContent()}</div>
       </div>
     </div>

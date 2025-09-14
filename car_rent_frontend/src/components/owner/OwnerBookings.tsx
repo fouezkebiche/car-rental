@@ -206,7 +206,7 @@ const OwnerBookings: React.FC = () => {
                 </h3>
               </div>
               <div className="space-y-2 text-gray-600">
-                <p>Customer: {booking.userId.name} ({booking.userId.email})</p>
+                
                 <p className="flex items-center">
                   <Calendar className="h-4 w-4 mr-2" />
                   Start: {new Date(booking.startDate).toLocaleDateString()}

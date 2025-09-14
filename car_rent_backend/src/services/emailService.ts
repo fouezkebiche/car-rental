@@ -32,6 +32,15 @@ interface BookingEmailOptions {
   rejectionReason?: string;
 }
 
+interface AdminBookingNotificationOptions {
+  to: string;
+  customerName: string;
+  carDetails: string;
+  pickupLocation: string;
+  startDate: Date;
+  totalAmount: number;
+}
+
 interface RegistrationPendingEmailOptions {
   to: string;
   userName: string;
@@ -160,6 +169,37 @@ export const sendBookingStatusEmail = async ({ to, userName, carDetails, status,
   } catch (error) {
     console.error('Error sending booking email:', error);
     throw new Error('Failed to send booking email');
+  }
+};
+
+export const sendAdminBookingNotification = async ({ to, customerName, carDetails, pickupLocation, startDate, totalAmount }: AdminBookingNotificationOptions) => {
+  const subject = `New Booking Created for ${carDetails}`;
+  const html = `
+    <h2>Hello Admin,</h2>
+    <p>A new booking has been created by <strong>${customerName}</strong> for the car: <strong>${carDetails}</strong>.</p>
+    <p><strong>Details:</strong></p>
+    <ul>
+      <li>Customer: ${customerName}</li>
+      <li>Car: ${carDetails}</li>
+      <li>Pickup Location: ${pickupLocation}</li>
+      <li>Pickup Date: ${new Date(startDate).toLocaleDateString()}</li>
+      <li>Total Amount: $${totalAmount.toLocaleString()}</li>
+    </ul>
+    <p>Please review the booking details in the Admin Panel.</p>
+    <p>Best regards,<br>Your Car Rental Team</p>
+  `;
+
+  try {
+    await transporter.sendMail({
+      from: `"Car Rental Platform" <${process.env.EMAIL_USER}>`,
+      to,
+      subject,
+      html,
+    });
+    console.log(`Admin booking notification sent to ${to} for ${carDetails}`);
+  } catch (error) {
+    console.error('Error sending admin booking notification:', error);
+    throw new Error('Failed to send admin booking notification');
   }
 };
 

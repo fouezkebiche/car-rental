@@ -15,7 +15,7 @@
 
 
 
-// C:\Users\kebic\OneDrive\Desktop\car_rent_rahim\car_rent_backend\src\controllers\authController.ts
+// C:\Users\kebic\OneDrive\Desktop\projects\car_rent_rahim\car_rent_backend\src\controllers\authController.ts
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
@@ -147,11 +147,11 @@ export const login = async (req: Request, res: Response) => {
 
 
 
-// C:\Users\kebic\OneDrive\Desktop\car_rent_rahim\car_rent_backend\src\controllers\bookingController.ts
+// C:\Users\kebic\OneDrive\Desktop\projects\car_rent_rahim\car_rent_backend\src\controllers\bookingController.ts
 import { Request, Response } from 'express';
 import Booking, { IBooking } from '../models/Booking';
 import Car from '../models/Car';
-import User from '../models/User'; // Added import
+import User from '../models/User';
 import { AuthRequest } from '../middleware/authMiddleware';
 import { validationResult } from 'express-validator';
 import { sendBookingStatusEmail } from '../services/emailService';
@@ -166,8 +166,20 @@ export const createBooking = async (req: AuthRequest, res: Response) => {
 
   try {
     const car = await Car.findById(carId);
-    if (!car || !car.available) {
-      return res.status(400).json({ message: 'Car not available' });
+    if (!car || !car.available || car.status !== 'approved') {
+      return res.status(400).json({ message: 'Car not available for booking' });
+    }
+
+    // Check for overlapping bookings
+    const overlappingBooking = await Booking.findOne({
+      carId,
+      status: { $in: ['pending', 'confirmed'] },
+      $or: [
+        { startDate: { $lte: new Date(endDate) }, endDate: { $gte: new Date(startDate) } },
+      ],
+    });
+    if (overlappingBooking) {
+      return res.status(400).json({ message: 'Car is already booked for the selected dates' });
     }
 
     const days = Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 3600 * 24));
@@ -178,7 +190,7 @@ export const createBooking = async (req: AuthRequest, res: Response) => {
         insurance: 25,
         'child-seat': 15,
         driver: 20,
-        wifi: 8
+        wifi: 8,
       };
       return total + (prices[service] || 0);
     }, 0);
@@ -195,12 +207,20 @@ export const createBooking = async (req: AuthRequest, res: Response) => {
       pickupLocation,
       dropoffLocation,
       additionalServices,
-      paymentMethod
+      paymentMethod,
     });
 
-    await booking.save();
-    car.available = false;
-    await car.save();
+    // Save booking and update car availability in a transaction
+    const session = await Car.startSession();
+    await session.withTransaction(async () => {
+      await booking.save({ session });
+      await Car.updateOne(
+        { _id: carId },
+        { $set: { available: false, updatedAt: new Date() } },
+        { session }
+      );
+    });
+    session.endSession();
 
     // Send notification email to owner
     const owner = await User.findById(car.ownerId).select('email name');
@@ -209,7 +229,7 @@ export const createBooking = async (req: AuthRequest, res: Response) => {
         to: owner.email,
         userName: owner.name,
         carDetails: `${car.brand} ${car.carModel}`,
-        status: 'pending', // Fixed in emailService.ts
+        status: 'pending',
         pickupLocation: booking.pickupLocation,
         startDate: booking.startDate,
       });
@@ -280,9 +300,21 @@ export const approveBooking = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    booking.status = 'confirmed';
-    booking.updatedAt = new Date();
-    await booking.save();
+    // Start a transaction to update booking and car atomically
+    const session = await Booking.startSession();
+    await session.withTransaction(async () => {
+      booking.status = 'confirmed';
+      booking.updatedAt = new Date();
+      await booking.save({ session });
+
+      // Update car availability to false
+      await Car.updateOne(
+        { _id: booking.carId },
+        { $set: { available: false, updatedAt: new Date() } },
+        { session }
+      );
+    });
+    session.endSession();
 
     // Send approval email to customer
     const userEmail = (booking.userId as any).email;
@@ -342,11 +374,10 @@ export const rejectBooking = async (req: AuthRequest, res: Response) => {
     await booking.save();
 
     // Set car back to available
-    const car = await Car.findById(booking.carId);
-    if (car) {
-      car.available = true;
-      await car.save();
-    }
+    await Car.updateOne(
+      { _id: booking.carId },
+      { $set: { available: true, updatedAt: new Date() } }
+    );
 
     // Send rejection email to customer
     const userEmail = (booking.userId as any).email;
@@ -391,7 +422,7 @@ export const rejectBooking = async (req: AuthRequest, res: Response) => {
 
 
 
-// C:\Users\kebic\OneDrive\Desktop\car_rent_rahim\car_rent_backend\src\controllers\carController.ts
+// C:\Users\kebic\OneDrive\Desktop\projects\car_rent_rahim\car_rent_backend\src\controllers\carController.ts
 import { Request, Response } from 'express';
 import Car, { ICar } from '../models/Car';
 import { AuthRequest } from '../middleware/authMiddleware';
@@ -766,13 +797,110 @@ export const deleteCarsById = async (req: AuthRequest, res: Response) => {
   }
 };
 
+// Get a single car by ID
+export const getCarById = async (req: Request, res: Response) => {
+  const { carId } = req.params;
+
+  try {
+    const car = await Car.findById(carId).populate('ownerId', 'name email');
+    if (!car) {
+      return res.status(404).json({ message: 'Car not found' });
+    }
+    if (car.status !== 'approved') {
+      return res.status(403).json({ message: 'Car is not available for booking' });
+    }
+    res.json(car);
+  } catch (error) {
+    console.error('Get car by ID error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Toggle car availability
+export const toggleCarAvailability = async (req: AuthRequest, res: Response) => {
+  const { carId } = req.params;
+  const { available } = req.body;
+
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  try {
+    // Find the car to verify ownership and status
+    const car = await Car.findById(carId);
+    if (!car) {
+      return res.status(404).json({ message: 'Car not found' });
+    }
+
+    if (!req.user?.userId) {
+      return res.status(401).json({ message: 'Authentication token is missing or invalid' });
+    }
+
+    if (car.ownerId.toString() !== req.user.userId) {
+      return res.status(403).json({ message: 'Unauthorized to modify this car' });
+    }
+
+    if (car.status !== 'approved') {
+      return res.status(400).json({ message: 'Can only toggle availability for approved cars' });
+    }
+
+    // Update only the 'available' field and 'updatedAt' timestamp
+    const result = await Car.updateOne(
+      { _id: carId },
+      { $set: { available: available, updatedAt: new Date() } }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ message: 'Car not found' });
+    }
+
+    if (result.modifiedCount === 0) {
+      return res.status(400).json({ message: 'No changes made to car availability' });
+    }
+
+    // Fetch the updated car for response
+    const updatedCar = await Car.findById(carId).populate('ownerId', 'name email');
+
+    res.json({
+      message: `Car ${available ? 'made available' : 'made unavailable'} successfully`,
+      car: {
+        id: updatedCar?._id,
+        brand: updatedCar?.brand,
+        carModel: updatedCar?.carModel,
+        year: updatedCar?.year,
+        price: updatedCar?.price,
+        image: updatedCar?.image,
+        category: updatedCar?.category,
+        transmission: updatedCar?.transmission,
+        fuel: updatedCar?.fuel,
+        seats: updatedCar?.seats,
+        available: updatedCar?.available,
+        features: updatedCar?.features,
+        wilaya: updatedCar?.wilaya,
+        commune: updatedCar?.commune,
+        rating: updatedCar?.rating,
+        ownerId: updatedCar?.ownerId,
+        status: updatedCar?.status,
+        rejectionReason: updatedCar?.rejectionReason,
+        createdAt: updatedCar?.createdAt,
+        updatedAt: updatedCar?.updatedAt,
+        chauffeur: updatedCar?.chauffeur,
+      },
+    });
+  } catch (error) {
+    console.error('Toggle car availability error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
 
 
 
 
 
 
-// C:\Users\kebic\OneDrive\Desktop\car_rent_rahim\car_rent_backend\src\controllers\testimonialController.ts
+
+// C:\Users\kebic\OneDrive\Desktop\projects\car_rent_rahim\car_rent_backend\src\controllers\testimonialController.ts
 import { Request, Response } from 'express';
 import Testimonial, { ITestimonial } from '../models/Testimonial';
 import { AuthRequest } from '../middleware/authMiddleware';
@@ -818,7 +946,7 @@ export const getTestimonials = async (req: Request, res: Response) => {
 
 
 
-// C:\Users\kebic\OneDrive\Desktop\car_rent_rahim\car_rent_backend\src\controllers\userController.ts
+// C:\Users\kebic\OneDrive\Desktop\projects\car_rent_rahim\car_rent_backend\src\controllers\userController.ts
 import { Request, Response } from 'express';
 import User from '../models/User';
 import { AuthRequest } from '../middleware/authMiddleware';
@@ -903,7 +1031,7 @@ export const getUsers = async (req: AuthRequest, res: Response) => {
 
 
 
-// C:\Users\kebic\OneDrive\Desktop\car_rent_rahim\car_rent_backend\src\middleware\authMiddleware.ts
+// C:\Users\kebic\OneDrive\Desktop\projects\car_rent_rahim\car_rent_backend\src\middleware\authMiddleware.ts
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
@@ -961,7 +1089,7 @@ export const roleMiddleware = (roles: string[]) => {
 
 
 
-// C:\Users\kebic\OneDrive\Desktop\car_rent_rahim\car_rent_backend\src\models\Booking.ts
+// C:\Users\kebic\OneDrive\Desktop\projects\car_rent_rahim\car_rent_backend\src\models\Booking.ts
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IBooking extends Document {
@@ -1006,7 +1134,7 @@ export default mongoose.model<IBooking>('Booking', BookingSchema);
 
 
 
-// C:\Users\kebic\OneDrive\Desktop\car_rent_rahim\car_rent_backend\src\models\Car.ts
+// C:\Users\kebic\OneDrive\Desktop\projects\car_rent_rahim\car_rent_backend\src\models\Car.ts
 import { Schema, Document, Types, model } from 'mongoose';
 
 export interface ICar extends Document {
@@ -1063,7 +1191,7 @@ export default model<ICar>('Car', CarSchema);
 
 
 
-// C:\Users\kebic\OneDrive\Desktop\car_rent_rahim\car_rent_backend\src\models\Testimonial.ts
+// C:\Users\kebic\OneDrive\Desktop\projects\car_rent_rahim\car_rent_backend\src\models\Testimonial.ts
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface ITestimonial extends Document {
@@ -1096,7 +1224,7 @@ export default mongoose.model<ITestimonial>('Testimonial', TestimonialSchema);
 
 
 
-// C:\Users\kebic\OneDrive\Desktop\car_rent_rahim\car_rent_backend\src\models\User.ts
+// C:\Users\kebic\OneDrive\Desktop\projects\car_rent_rahim\car_rent_backend\src\models\User.ts
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IUser extends Document {
@@ -1142,7 +1270,7 @@ export default mongoose.model<IUser>('User', UserSchema);
 
 
 
-// C:\Users\kebic\OneDrive\Desktop\car_rent_rahim\car_rent_backend\src\routes\authRoutes.ts
+// C:\Users\kebic\OneDrive\Desktop\projects\car_rent_rahim\car_rent_backend\src\routes\authRoutes.ts
 import { Router } from 'express';
 import { register, login } from '../controllers/authController';
 import { check } from 'express-validator';
@@ -1178,7 +1306,7 @@ export default router;
 
 
 
-// C:\Users\kebic\OneDrive\Desktop\car_rent_rahim\car_rent_backend\src\routes\bookingRoutes.ts
+// C:\Users\kebic\OneDrive\Desktop\projects\car_rent_rahim\car_rent_backend\src\routes\bookingRoutes.ts
 import { Router } from 'express';
 import { createBooking, getBookings, getPendingOwnerBookings, getAllBookings, approveBooking, rejectBooking } from '../controllers/bookingController';
 import { authMiddleware, roleMiddleware } from '../middleware/authMiddleware';
@@ -1215,9 +1343,22 @@ export default router;
 
 
 
-// C:\Users\kebic\OneDrive\Desktop\car_rent_rahim\car_rent_backend\src\routes\carRoutes.ts
+// C:\Users\kebic\OneDrive\Desktop\projects\car_rent_rahim\car_rent_backend\src\routes\carRoutes.ts
+// C:\Users\kebic\OneDrive\Desktop\car_rent_rahim\car_rent_backend\routes\carRoutes.ts
 import { Router } from 'express';
-import { addCar, getCars, getOwnerCars, getPendingCars, approveCar, rejectCar, editCar, upload, deleteCarsById } from '../controllers/carController';
+import {
+  addCar,
+  getCars,
+  getOwnerCars,
+  getPendingCars,
+  approveCar,
+  rejectCar,
+  editCar,
+  upload,
+  deleteCarsById,
+  getCarById, // New
+  toggleCarAvailability, // New
+} from '../controllers/carController';
 import { authMiddleware, roleMiddleware } from '../middleware/authMiddleware';
 import { check } from 'express-validator';
 
@@ -1268,6 +1409,16 @@ router.put(
 router.get('/', getCars);
 router.get('/owner', authMiddleware, roleMiddleware(['owner']), getOwnerCars);
 router.get('/pending', authMiddleware, roleMiddleware(['admin']), getPendingCars);
+router.get('/:carId', getCarById); // New: Fetch single car
+router.put(
+  '/toggle-availability/:carId', // New: Toggle availability
+  [
+    authMiddleware,
+    roleMiddleware(['owner']),
+    check('available', 'Availability must be a boolean').isBoolean(),
+  ],
+  toggleCarAvailability
+);
 router.put('/approve/:carId', authMiddleware, roleMiddleware(['admin']), approveCar);
 router.put('/reject/:carId', authMiddleware, roleMiddleware(['admin']), rejectCar);
 router.post(
@@ -1288,7 +1439,7 @@ export default router;
 
 
 
-// C:\Users\kebic\OneDrive\Desktop\car_rent_rahim\car_rent_backend\src\routes\testimonialRoutes.ts
+// C:\Users\kebic\OneDrive\Desktop\projects\car_rent_rahim\car_rent_backend\src\routes\testimonialRoutes.ts
 import { Router } from 'express';
 import { addTestimonial, getTestimonials } from '../controllers/testimonialController';
 import { authMiddleware, roleMiddleware } from '../middleware/authMiddleware';
@@ -1320,7 +1471,7 @@ export default router;
 
 
 
-// C:\Users\kebic\OneDrive\Desktop\car_rent_rahim\car_rent_backend\src\routes\userRoutes.ts
+// C:\Users\kebic\OneDrive\Desktop\projects\car_rent_rahim\car_rent_backend\src\routes\userRoutes.ts
 import { Router } from 'express';
 import { approveOwner, getUsers, declineUser } from '../controllers/userController';
 import { authMiddleware, roleMiddleware } from '../middleware/authMiddleware';
@@ -1355,7 +1506,7 @@ export default router;
 
 
 
-// C:\Users\kebic\OneDrive\Desktop\car_rent_rahim\car_rent_backend\src\scripts\extract_code.js
+// C:\Users\kebic\OneDrive\Desktop\projects\car_rent_rahim\car_rent_backend\src\scripts\extract_code.js
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -1422,7 +1573,7 @@ console.log(`✅ Code extracted to: ${outputFile}`);
 
 
 
-// C:\Users\kebic\OneDrive\Desktop\car_rent_rahim\car_rent_backend\src\services\emailService.ts
+// C:\Users\kebic\OneDrive\Desktop\projects\car_rent_rahim\car_rent_backend\src\services\emailService.ts
 import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
 
@@ -1670,7 +1821,7 @@ export const sendDeclineUserEmail = async ({ to, userName }: DeclineUserEmailOpt
 
 
 
-// C:\Users\kebic\OneDrive\Desktop\car_rent_rahim\car_rent_backend\src\app.ts
+// C:\Users\kebic\OneDrive\Desktop\projects\car_rent_rahim\car_rent_backend\src\app.ts
 import express, { Application } from 'express';
 import path from 'path';
 import mongoose from 'mongoose';
@@ -1716,7 +1867,7 @@ app.listen(PORT, () => {
 
 
 
-// C:\Users\kebic\OneDrive\Desktop\car_rent_rahim\car_rent_backend\src\seed.ts
+// C:\Users\kebic\OneDrive\Desktop\projects\car_rent_rahim\car_rent_backend\src\seed.ts
 import mongoose from 'mongoose';
 import bcrypt from 'bcrypt';
 import dotenv from 'dotenv';

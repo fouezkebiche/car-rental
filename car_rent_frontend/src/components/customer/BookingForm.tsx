@@ -13,8 +13,8 @@ const BookingForm: React.FC = () => {
   const [formData, setFormData] = useState({
     startDate: '',
     endDate: '',
-    pickupLocation: '',
-    dropoffLocation: '',
+    pickupLocation: 'Office', // Default to Office
+    dropoffLocation: 'Office', // Default to Office
     additionalServices: [] as string[],
     paymentMethod: 'credit-card',
   });
@@ -23,6 +23,7 @@ const BookingForm: React.FC = () => {
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
+  const [bookedPeriods, setBookedPeriods] = useState<{ start: string; end: string }[]>([]);
 
   useEffect(() => {
     if (!carId || !/^[0-9a-fA-F]{24}$/.test(carId)) {
@@ -32,8 +33,17 @@ const BookingForm: React.FC = () => {
     }
 
     const fetchCar = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('Please log in to view car details.');
+        setFetching(false);
+        navigate('/login');
+        return;
+      }
+
       try {
         const response = await axios.get(`/api/cars/${carId}`, {
+          headers: { Authorization: `Bearer ${token}` },
           timeout: 5000,
         });
         const c = response.data;
@@ -75,6 +85,12 @@ const BookingForm: React.FC = () => {
           setError('Car not found.');
         } else if (err.response?.status === 403) {
           setError('This car is not available for booking.');
+        } else if (err.response?.status === 401) {
+          setError('Please log in again.');
+          localStorage.removeItem('token');
+          localStorage.removeItem('role');
+          localStorage.removeItem('userProfile');
+          navigate('/login');
         } else {
           setError('Failed to load car details.');
         }
@@ -83,8 +99,24 @@ const BookingForm: React.FC = () => {
       }
     };
 
+    const fetchBookedPeriods = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      try {
+        const response = await axios.get(`/api/bookings/car/${carId}/booked`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setBookedPeriods(response.data);
+      } catch (err: any) {
+        console.error('Fetch booked periods error:', err);
+        setError('Failed to load availability information.');
+      }
+    };
+
     fetchCar();
-  }, [carId]);
+    fetchBookedPeriods();
+  }, [carId, navigate]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -103,16 +135,43 @@ const BookingForm: React.FC = () => {
     }));
   };
 
+  const overlaps = (start1: Date, end1: Date, start2: Date, end2: Date): boolean => {
+    return !(end1 <= start2 || start1 >= end2);
+  };
+
   useEffect(() => {
     if (formData.startDate && formData.endDate && car) {
       const start = new Date(formData.startDate);
       const end = new Date(formData.endDate);
-      if (start > end) {
-        setError('End date must be after start date.');
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        setError('Invalid date or time format.');
         setTotalAmount(0);
         return;
       }
-      const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 3600 * 24));
+      if (start >= end) {
+        setError('End date/time must be after start date/time.');
+        setTotalAmount(0);
+        return;
+      }
+
+      let hasOverlap = false;
+      for (const period of bookedPeriods) {
+        const bookedStart = new Date(period.start);
+        const bookedEnd = new Date(period.end);
+        if (overlaps(start, end, bookedStart, bookedEnd)) {
+          hasOverlap = true;
+          break;
+        }
+      }
+
+      if (hasOverlap) {
+        setError('Selected period overlaps with an existing booking. Please choose different dates/times.');
+        setTotalAmount(0);
+        return;
+      }
+
+      const milliseconds = end.getTime() - start.getTime();
+      const days = Math.ceil(milliseconds / (1000 * 3600 * 24));
       if (days < 1) {
         setError('Booking must be for at least one day.');
         setTotalAmount(0);
@@ -132,7 +191,7 @@ const BookingForm: React.FC = () => {
       setTotalAmount(basePrice + servicePrice * days);
       setError('');
     }
-  }, [formData.startDate, formData.endDate, formData.additionalServices, car]);
+  }, [formData.startDate, formData.endDate, formData.additionalServices, car, bookedPeriods]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -163,7 +222,12 @@ const BookingForm: React.FC = () => {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-      setSuccess(true);
+      console.log('Booking response:', response.data); // Debug: Log response
+      if (response.status === 201) {
+        setSuccess(true);
+      } else {
+        setError(`Unexpected response status: ${response.status}`);
+      }
     } catch (err: any) {
       console.error('Create booking error:', {
         status: err.response?.status,
@@ -179,7 +243,7 @@ const BookingForm: React.FC = () => {
         localStorage.removeItem('userProfile');
         navigate('/login');
       } else {
-        setError('An error occurred. Please try again.');
+        setError(err.response?.data?.message || 'An error occurred while submitting the booking. Please try again.');
       }
     } finally {
       setLoading(false);
@@ -190,6 +254,8 @@ const BookingForm: React.FC = () => {
     setSuccess(false);
     navigate('/customer');
   };
+
+  const currentDatetime = new Date().toISOString().slice(0, 16);
 
   if (fetching) {
     return <div className="flex justify-center items-center h-64 text-gray-600">Loading car details...</div>;
@@ -206,36 +272,55 @@ const BookingForm: React.FC = () => {
   return (
     <div className="p-8 max-w-2xl mx-auto">
       <h2 className="text-3xl font-bold text-gray-900 mb-6">Book {car.brand} {car.carModel}</h2>
+
+      <div className="mb-6 bg-white rounded-xl shadow-lg p-6">
+        <h3 className="text-xl font-semibold text-gray-900 mb-4">Availability</h3>
+        {bookedPeriods.length === 0 ? (
+          <p className="text-green-600">This car is fully available for booking.</p>
+        ) : (
+          <>
+            <p className="text-gray-600 mb-2">The following periods are unavailable:</p>
+            <ul className="list-disc pl-6 space-y-2">
+              {bookedPeriods.map((period, index) => (
+                <li key={index} className="text-sm text-gray-700">
+                  {new Date(period.start).toLocaleString()} to {new Date(period.end).toLocaleString()}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
+
       <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-lg p-6 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
               <Calendar className="h-5 w-5 mr-2 text-blue-600" />
-              Start Date
+              Pickup Date & Time
             </label>
             <input
-              type="date"
+              type="datetime-local"
               name="startDate"
               value={formData.startDate}
               onChange={handleInputChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600"
               required
-              min={new Date().toISOString().split('T')[0]}
+              min={currentDatetime}
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
               <Calendar className="h-5 w-5 mr-2 text-blue-600" />
-              End Date
+              Dropoff Date & Time
             </label>
             <input
-              type="date"
+              type="datetime-local"
               name="endDate"
               value={formData.endDate}
               onChange={handleInputChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600"
               required
-              min={formData.startDate || new Date().toISOString().split('T')[0]}
+              min={formData.startDate || currentDatetime}
             />
           </div>
         </div>
@@ -245,28 +330,30 @@ const BookingForm: React.FC = () => {
               <MapPin className="h-5 w-5 mr-2 text-blue-600" />
               Pickup Location
             </label>
-            <input
-              type="text"
+            <select
               name="pickupLocation"
               value={formData.pickupLocation}
               onChange={handleInputChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600"
               required
-            />
+            >
+              <option value="Office">Office</option>
+            </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
               <MapPin className="h-5 w-5 mr-2 text-blue-600" />
               Dropoff Location
             </label>
-            <input
-              type="text"
+            <select
               name="dropoffLocation"
               value={formData.dropoffLocation}
               onChange={handleInputChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600"
               required
-            />
+            >
+              <option value="Office">Office</option>
+            </select>
           </div>
         </div>
         <div>
@@ -333,7 +420,7 @@ const BookingForm: React.FC = () => {
           </button>
           <button
             type="submit"
-            disabled={loading || totalAmount === 0}
+            disabled={loading || totalAmount === 0 || !!error}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 disabled:bg-blue-400 disabled:cursor-not-allowed"
           >
             {loading ? (

@@ -34,7 +34,7 @@ const Navbar: React.FC = () => {
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-2">
             <Car className="h-8 w-8 text-blue-600" />
-            <span className="text-xl font-bold text-gray-900">Car Service Sharing</span>
+            <span className="text-xl font-bold text-gray-900">MK Location</span>
           </Link>
 
           {/* Desktop Navigation */}

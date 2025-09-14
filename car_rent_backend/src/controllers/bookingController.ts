@@ -4,7 +4,8 @@ import Car from '../models/Car';
 import User from '../models/User';
 import { AuthRequest } from '../middleware/authMiddleware';
 import { validationResult } from 'express-validator';
-import { sendBookingStatusEmail } from '../services/emailService';
+import { sendBookingStatusEmail, sendAdminBookingNotification } from '../services/emailService';
+import mongoose from 'mongoose';
 
 export const createBooking = async (req: AuthRequest, res: Response) => {
   const errors = validationResult(req);
@@ -15,7 +16,7 @@ export const createBooking = async (req: AuthRequest, res: Response) => {
   const { carId, startDate, endDate, pickupLocation, dropoffLocation, additionalServices, paymentMethod } = req.body;
 
   try {
-    const car = await Car.findById(carId);
+    const car = await Car.findById(carId).populate('ownerId', 'name email');
     if (!car || !car.available || car.status !== 'approved') {
       return res.status(400).json({ message: 'Car not available for booking' });
     }
@@ -73,7 +74,7 @@ export const createBooking = async (req: AuthRequest, res: Response) => {
     session.endSession();
 
     // Send notification email to owner
-    const owner = await User.findById(car.ownerId).select('email name');
+    const owner = car.ownerId as any;
     if (owner) {
       await sendBookingStatusEmail({
         to: owner.email,
@@ -85,7 +86,35 @@ export const createBooking = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    res.status(201).json(booking);
+    // Send notification email to admin
+    const customer = await User.findById(req.user?.userId).select('name');
+    if (customer) {
+      await sendAdminBookingNotification({
+        to: process.env.EMAIL_USER || 'kebichefouez@gmail.com',
+        customerName: customer.name,
+        carDetails: `${car.brand} ${car.carModel}`,
+        pickupLocation: booking.pickupLocation,
+        startDate: booking.startDate,
+        totalAmount: booking.totalAmount,
+      });
+    }
+
+    res.status(201).json({
+      id: booking._id,
+      userId: booking.userId,
+      carId: booking.carId,
+      ownerId: booking.ownerId,
+      startDate: booking.startDate,
+      endDate: booking.endDate,
+      totalAmount: booking.totalAmount,
+      status: booking.status,
+      pickupLocation: booking.pickupLocation,
+      dropoffLocation: booking.dropoffLocation,
+      additionalServices: booking.additionalServices,
+      paymentMethod: booking.paymentMethod,
+      createdAt: booking.createdAt,
+      updatedAt: booking.updatedAt,
+    });
   } catch (error) {
     console.error('Create booking error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -150,14 +179,12 @@ export const approveBooking = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    // Start a transaction to update booking and car atomically
     const session = await Booking.startSession();
     await session.withTransaction(async () => {
       booking.status = 'confirmed';
       booking.updatedAt = new Date();
       await booking.save({ session });
 
-      // Update car availability to false
       await Car.updateOne(
         { _id: booking.carId },
         { $set: { available: false, updatedAt: new Date() } },
@@ -166,7 +193,6 @@ export const approveBooking = async (req: AuthRequest, res: Response) => {
     });
     session.endSession();
 
-    // Send approval email to customer
     const userEmail = (booking.userId as any).email;
     const userName = (booking.userId as any).name;
     const carDetails = `${(booking.carId as any).brand} ${(booking.carId as any).carModel}`;
@@ -223,13 +249,11 @@ export const rejectBooking = async (req: AuthRequest, res: Response) => {
     booking.updatedAt = new Date();
     await booking.save();
 
-    // Set car back to available
     await Car.updateOne(
       { _id: booking.carId },
       { $set: { available: true, updatedAt: new Date() } }
     );
 
-    // Send rejection email to customer
     const userEmail = (booking.userId as any).email;
     const userName = (booking.userId as any).name;
     const carDetails = `${(booking.carId as any).brand} ${(booking.carId as any).carModel}`;
@@ -262,6 +286,29 @@ export const rejectBooking = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     console.error('Reject booking error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+export const getCarBookedPeriods = async (req: Request, res: Response) => {
+  const { carId } = req.params;
+
+  try {
+    if (!mongoose.Types.ObjectId.isValid(carId)) {
+      return res.status(400).json({ message: 'Invalid car ID' });
+    }
+
+    const bookings = await Booking.find({
+      carId,
+      status: { $in: ['pending', 'confirmed'] }
+    }).select('startDate endDate');
+
+    res.json(bookings.map(b => ({
+      start: b.startDate.toISOString(),
+      end: b.endDate.toISOString()
+    })));
+  } catch (error) {
+    console.error('Get car booked periods error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
